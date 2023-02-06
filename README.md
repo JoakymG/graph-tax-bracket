@@ -1,8 +1,7 @@
-Instructions
+# Instructions
 
 Typescript and parcel package are not in package.json bydefault
 It is recommended to install those package globally because of their large size (~30MB typescript & ~80Mb parcel)
-
 
 Install globally
 
@@ -13,7 +12,6 @@ OR
 Install in dev dependency
 
 `npm install --save-dev typescript`
-
 
 Same with parcel bundler
 

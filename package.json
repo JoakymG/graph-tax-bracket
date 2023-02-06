@@ -5,8 +5,9 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start:dev": "npx nodemon",
-    "build": "rimraf ./build && tsc",
+    "start:dev": "parcel ./src/index.html",
+    "build": "rimraf ./build && tsc && npm run copy",
+    "copy": "copyfiles \"./src/**/*.{css,html}\" \"./build/\"",
     "start": "npm run build && node build/index.js"
   },
   "keywords": [],
@@ -14,6 +15,7 @@
   "license": "ISC",
   "devDependencies": {
     "@types/node": "^18.11.19",
+    "copyfiles": "^2.4.1",
     "nodemon": "^2.0.20",
     "rimraf": "^4.1.2",
     "ts-node": "^10.9.1",
