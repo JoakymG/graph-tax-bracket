@@ -1,6 +1,4 @@
-import Chart, {
-  AreaChartOptions,
-} from '@toast-ui/chart';
+import Chart, { AreaChartOptions } from '@toast-ui/chart';
 
 interface Locations {
   country: string;
@@ -55,6 +53,7 @@ class IncomeTaxCalculator {
   income: number = 0;
   scale: number = 0;
   taxType: taxType = 'all';
+  wrongCalculation: boolean = false;
   taxBrackets: TaxBracketsByCountry = {
     canada: {
       federal: {
@@ -89,11 +88,13 @@ class IncomeTaxCalculator {
   constructor(
     income: number,
     locations: Locations = { country: 'canada', province: 'quebec' },
-    taxType: taxType = 'all'
+    taxType: taxType = 'all',
+    wrongCalculation: boolean = false
   ) {
     this.income = income;
     this.locations = locations;
     this.taxType = taxType;
+    this.wrongCalculation = wrongCalculation;
     this.calculateScale();
   }
 
@@ -112,13 +113,18 @@ class IncomeTaxCalculator {
   }
 
   calculateTax() {
-    this._getTax(this.income, this.locations, this.taxType);
+    this._getTax(
+      this.income,
+      this.locations,
+      this.taxType,
+      this.wrongCalculation
+    );
     return this.graph;
   }
 
   getIncomeRangeScale() {
     let array = [];
-    for (let i = 0; i < this.income; i += this.scale) {
+    for (let i = 0; i <= this.income; i += this.scale) {
       array.push(i);
     }
     return array;
@@ -126,7 +132,7 @@ class IncomeTaxCalculator {
 
   getGrossIncome() {
     let array = [];
-    for (let i = 0; i < this.income; i += this.scale) {
+    for (let i = 0; i <= this.income; i += this.scale) {
       array.push(i);
     }
     return { name: 'Gross Income', data: array };
@@ -134,7 +140,7 @@ class IncomeTaxCalculator {
 
   getNetIncome() {
     let array = [];
-    for (let i = 0; i < this.income; i += this.scale) {
+    for (let i = 0; i <= this.income; i += this.scale) {
       array.push(+this.graph.graphPoints[i].netIncome.toFixed(2));
     }
     return { name: 'Net Income', data: array };
@@ -142,7 +148,7 @@ class IncomeTaxCalculator {
 
   getFederalTax() {
     let array = [];
-    for (let i = 0; i < this.income; i += this.scale) {
+    for (let i = 0; i <= this.income; i += this.scale) {
       array.push(this.graph.graphPoints[i].federalTax);
     }
     return { name: 'Federal Taxes', data: array };
@@ -150,7 +156,7 @@ class IncomeTaxCalculator {
 
   getProvincialTax() {
     let array = [];
-    for (let i = 0; i < this.income; i += this.scale) {
+    for (let i = 0; i <= this.income; i += this.scale) {
       array.push(this.graph.graphPoints[i].provincialTax);
     }
     return { name: 'Provincial Taxes', data: array };
@@ -158,19 +164,19 @@ class IncomeTaxCalculator {
 
   getMarginalTaxRate() {
     let array = [];
-    for (let i = 0; i < this.income; i += this.scale) {
+    for (let i = 0; i <= this.income; i += this.scale) {
       array.push(+this.graph.graphPoints[i].marginalTaxRate.toFixed(2));
     }
     console.log(typeof array[0]);
-    
+
     return { name: 'Marginal Tax Rate (%)', data: array };
   }
 
   getMarginalDollarTaxRate() {
     let array = [];
-    for (let i = 0; i < this.income; i += this.scale) {
+    for (let i = 0; i <= this.income; i += this.scale) {
       array.push(
-        +(100-((this.graph.graphPoints[i].marginalTaxRate) * 1)).toFixed(2)
+        +(100 - this.graph.graphPoints[i].marginalTaxRate * 1).toFixed(2)
       );
     }
     return { name: 'Marginal Dollar Value Rate ($)', data: array };
@@ -178,7 +184,7 @@ class IncomeTaxCalculator {
 
   getDollarTaxRate() {
     let array = [];
-    for (let i = 0; i < this.income; i += this.scale) {
+    for (let i = 0; i <= this.income; i += this.scale) {
       array.push(+this.graph.graphPoints[i].dollarTaxRate.toFixed(2));
     }
     return { name: 'Dollar Tax Rate (%)', data: array };
@@ -186,7 +192,7 @@ class IncomeTaxCalculator {
 
   getDollarValue() {
     let array = [];
-    for (let i = 0; i < this.income; i += this.scale) {
+    for (let i = 0; i <= this.income; i += this.scale) {
       array.push(+this.graph.graphPoints[i].dollarValue.toFixed(2));
     }
     return { name: 'Dollar Value ($)', data: array };
@@ -195,59 +201,90 @@ class IncomeTaxCalculator {
   private _getTax(
     income: number,
     location: Locations,
-    taxType: taxType = 'all'
+    taxType: taxType = 'all',
+    wrongCalculation = false
   ) {
     const federalTaxBrackets =
       this.taxBrackets[location.country].federal.brackets;
     const provincialTaxBrackets =
       this.taxBrackets[location.country].provincial[location.province].brackets;
-    for (let i = 0; i < income; i += 1) {
+    for (let i = 0; i <= income; i += 1) {
       let federalTax = 0;
       let provincialTax = 0;
       let fedBracket = 0;
       let provBracket = 0;
-      if (taxType === 'provincial' || taxType === 'all') {
-        for (let j = 0; j < federalTaxBrackets.length; j++) {
-          if (
-            i >= federalTaxBrackets[j].min &&
-            i <= federalTaxBrackets[j].max
-          ) {
-            federalTax +=
-              (i - federalTaxBrackets[j].min) * federalTaxBrackets[j].rate;
+      if (!wrongCalculation) {
+        if (taxType === 'provincial' || taxType === 'all') {
+          for (let j = 0; j < federalTaxBrackets.length; j++) {
+            if (
+              i >= federalTaxBrackets[j].min &&
+              i <= federalTaxBrackets[j].max
+            ) {
+              federalTax +=
+                (i - federalTaxBrackets[j].min) * federalTaxBrackets[j].rate;
+              fedBracket = j;
+              break;
+            } else if (
+              i > federalTaxBrackets[j].min &&
+              i > federalTaxBrackets[j].max
+            ) {
+              federalTax +=
+                (federalTaxBrackets[j].max - federalTaxBrackets[j].min) *
+                federalTaxBrackets[j].rate;
+            }
             fedBracket = j;
-            break;
-          } else if (
-            i > federalTaxBrackets[j].min &&
-            i > federalTaxBrackets[j].max
-          ) {
-            federalTax +=
-              (federalTaxBrackets[j].max - federalTaxBrackets[j].min) *
-              federalTaxBrackets[j].rate;
           }
-          fedBracket = j;
         }
-      }
 
-      if (taxType === 'federal' || taxType === 'all') {
-        for (let k = 0; k < provincialTaxBrackets.length; k++) {
-          if (
-            i >= provincialTaxBrackets[k].min &&
-            i <= provincialTaxBrackets[k].max
-          ) {
-            provincialTax +=
-              (i - provincialTaxBrackets[k].min) *
-              provincialTaxBrackets[k].rate;
+        if (taxType === 'federal' || taxType === 'all') {
+          for (let k = 0; k < provincialTaxBrackets.length; k++) {
+            if (
+              i >= provincialTaxBrackets[k].min &&
+              i <= provincialTaxBrackets[k].max
+            ) {
+              provincialTax +=
+                (i - provincialTaxBrackets[k].min) *
+                provincialTaxBrackets[k].rate;
+              provBracket = k;
+              break;
+            } else if (
+              i > provincialTaxBrackets[k].min &&
+              i > provincialTaxBrackets[k].max
+            ) {
+              provincialTax +=
+                (provincialTaxBrackets[k].max - provincialTaxBrackets[k].min) *
+                provincialTaxBrackets[k].rate;
+            }
             provBracket = k;
-            break;
-          } else if (
-            i > provincialTaxBrackets[k].min &&
-            i > provincialTaxBrackets[k].max
-          ) {
-            provincialTax +=
-              (provincialTaxBrackets[k].max - provincialTaxBrackets[k].min) *
-              provincialTaxBrackets[k].rate;
           }
-          provBracket = k;
+        }
+      } else {
+        if (taxType === 'provincial' || taxType === 'all') {
+          for (let j = 0; j < federalTaxBrackets.length; j++) {
+            if (
+              i >= federalTaxBrackets[j].min &&
+              i <= federalTaxBrackets[j].max
+            ) {
+              federalTax = i * federalTaxBrackets[j].rate;
+              fedBracket = j;
+              break;
+            }
+            fedBracket = j;
+          }
+        }
+
+        if (taxType === 'federal' || taxType === 'all') {
+          for (let k = 0; k < provincialTaxBrackets.length; k++) {
+            if (
+              i >= provincialTaxBrackets[k].min &&
+              i <= provincialTaxBrackets[k].max
+            ) {
+              provincialTax = i * provincialTaxBrackets[k].rate;
+              provBracket = k;
+              break;
+            }
+            provBracket = k;
+          }
         }
       }
 
@@ -258,8 +295,7 @@ class IncomeTaxCalculator {
         netIncome: i - (federalTax + provincialTax),
         marginalTaxRate:
           ((federalTax + provincialTax) / i) * 100 ||
-          federalTaxBrackets[0].rate +
-            provincialTaxBrackets[0].rate,
+          federalTaxBrackets[0].rate + provincialTaxBrackets[0].rate,
         federalTaxRate: federalTaxBrackets[fedBracket].rate,
         provincialTaxRate: provincialTaxBrackets[provBracket].rate,
         dollarTaxRate:
@@ -268,18 +304,18 @@ class IncomeTaxCalculator {
           1 *
           100,
         dollarValue:
-          ((1 -
+          (1 -
             (federalTaxBrackets[fedBracket].rate +
               provincialTaxBrackets[provBracket].rate) *
               1) *
-          100),
+          100,
       };
       this.graph.graphPoints.push(graphPoint);
     }
   }
 }
 
-const tax = new IncomeTaxCalculator(500000);
+const tax = new IncomeTaxCalculator(350000);
 tax.calculateTax();
 
 const el = document.getElementById('chart') as any;
@@ -346,7 +382,7 @@ const marginalTaxOptions: AreaChartOptions = {
       },
     },
   ],
-  series: { },
+  series: {},
   legend: { align: 'bottom' },
 };
 
@@ -358,31 +394,36 @@ const effectiveBuyingPowerData: any = {
   categories: [...tax.getIncomeRangeScale()],
   series: [
     {
-      name: "1$ earned after taxes",
+      name: '1$ earned after taxes',
       data: tax.getDollarValue().data,
     },
     {
-      name: "1$ with 15% sales tax",
+      name: '1$ with 15% sales tax',
       data: tax
-      .getDollarValue()
-      .data.map((d: any) => +(d * (1 / (1 + 0.15))).toFixed(2)),
+        .getDollarValue()
+        .data.map((d: any) => +(d * (1 / (1 + 0.15))).toFixed(2)),
     },
     {
       ...tax.getMarginalDollarTaxRate(),
     },
     {
-      name: "Marginal 1$ with 15% sales tax",
+      name: 'Marginal 1$ with 15% sales tax',
       data: tax
-      .getMarginalDollarTaxRate()
-      .data.map((d: any) => +(d * (1 / (1 + 0.15))).toFixed(2)),
+        .getMarginalDollarTaxRate()
+        .data.map((d: any) => +(d * (1 / (1 + 0.15))).toFixed(2)),
     },
   ],
 };
 const effectiveBuyingPowerOptions: AreaChartOptions = {
-  chart: { title: 'Effective Dollar Buying Power by Income (What 1$ earned can buy after all taxes (including sales taxes))', width: 'auto', height: 400 },
+  chart: {
+    title:
+      'Effective Dollar Buying Power by Income (What 1$ earned can buy after all taxes (including sales taxes))',
+    width: 'auto',
+    height: 400,
+  },
   xAxis: { pointOnColumn: false, title: { text: 'Income ($)' } },
   yAxis: { title: '1.00$' },
-  series: { },
+  series: {},
   legend: { align: 'bottom' },
 };
 
@@ -396,4 +437,139 @@ const effectiveBuyingPowerChart = Chart.areaChart({
   el: effectiveBuyingPowerEl,
   data: effectiveBuyingPowerData,
   options: effectiveBuyingPowerOptions,
+});
+
+const wrongTax = new IncomeTaxCalculator(
+  350000,
+  { country: 'canada', province: 'quebec' },
+  'all',
+  true
+);
+wrongTax.calculateTax();
+
+const wrongel = document.getElementById('wrongchart') as any;
+const wrongdata: any = {
+  categories: [...wrongTax.getIncomeRangeScale()],
+  series: [
+    {
+      ...wrongTax.getGrossIncome(),
+    },
+    {
+      ...wrongTax.getNetIncome(),
+    },
+    {
+      ...wrongTax.getFederalTax(),
+    },
+    {
+      ...wrongTax.getProvincialTax(),
+    },
+  ],
+};
+const wrongoptions: AreaChartOptions = {
+  chart: { title: 'Tax Graph by income', width: 'auto', height: 400 },
+  xAxis: { pointOnColumn: false, title: { text: 'Income ($)' } },
+  yAxis: { title: 'Money ($)' },
+  series: { spline: true },
+  legend: { align: 'bottom' },
+};
+
+const wrongmarginalTaxEl = document.getElementById(
+  'wrongmarginalTaxChart'
+) as any;
+
+const wrongmarginalTaxData: any = {
+  categories: [...wrongTax.getIncomeRangeScale()],
+  series: [
+    {
+      ...wrongTax.getMarginalTaxRate(),
+    },
+    {
+      ...wrongTax.getDollarTaxRate(),
+    },
+    {
+      ...wrongTax.getDollarValue(),
+    },
+    {
+      ...wrongTax.getMarginalDollarTaxRate(),
+    },
+  ],
+};
+const wrongmarginalTaxOptions: AreaChartOptions = {
+  chart: { title: 'Marginal Tax Rate by income', width: 'auto', height: 400 },
+  xAxis: { pointOnColumn: false, title: { text: 'Income ($)' } },
+  yAxis: [
+    {
+      title: '%',
+      scale: {
+        min: 0,
+        max: 100,
+      },
+    },
+    {
+      title: '1.00$',
+      scale: {
+        min: 0,
+        max: 100,
+      },
+    },
+  ],
+  series: {},
+  legend: { align: 'bottom' },
+};
+
+const wrongeffectiveBuyingPowerEl = document.getElementById(
+  'wrongeffectiveBuyingPower'
+) as any;
+
+const wrongeffectiveBuyingPowerData: any = {
+  categories: [...wrongTax.getIncomeRangeScale()],
+  series: [
+    {
+      name: '1$ earned after taxes',
+      data: wrongTax.getDollarValue().data,
+    },
+    {
+      name: '1$ with 15% sales tax',
+      data: tax
+        .getDollarValue()
+        .data.map((d: any) => +(d * (1 / (1 + 0.15))).toFixed(2)),
+    },
+    {
+      ...wrongTax.getMarginalDollarTaxRate(),
+    },
+    {
+      name: 'Marginal 1$ with 15% sales tax',
+      data: tax
+        .getMarginalDollarTaxRate()
+        .data.map((d: any) => +(d * (1 / (1 + 0.15))).toFixed(2)),
+    },
+  ],
+};
+const wrongeffectiveBuyingPowerOptions: AreaChartOptions = {
+  chart: {
+    title:
+      'Effective Dollar Buying Power by Income (What 1$ earned can buy after all taxes (including sales taxes))',
+    width: 'auto',
+    height: 400,
+  },
+  xAxis: { pointOnColumn: false, title: { text: 'Income ($)' } },
+  yAxis: { title: '1.00$' },
+  series: {},
+  legend: { align: 'bottom' },
+};
+
+const wrongchart = Chart.areaChart({
+  el: wrongel,
+  data: wrongdata,
+  options: wrongoptions,
+});
+const wrongmarginalTaxChart = Chart.lineChart({
+  el: wrongmarginalTaxEl,
+  data: wrongmarginalTaxData,
+  options: wrongmarginalTaxOptions,
+});
+const wrongeffectiveBuyingPowerChart = Chart.areaChart({
+  el: wrongeffectiveBuyingPowerEl,
+  data: wrongeffectiveBuyingPowerData,
+  options: wrongeffectiveBuyingPowerOptions,
 });
